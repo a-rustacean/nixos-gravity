@@ -14,7 +14,7 @@ let
     owner = "GravityLinux";
     repo = "linux";
     rev = "4fc326f6c25ccceb7515e2635c22e01fde5d3bac";
-    hash = "sha256-BFxkVA+kIQOUyJnK1jIMW/kJCmaRmTjZhq6q0AM5Rug=";
+    hash = "sha256-DxH3lrWAutnskHuP+6Q7NRHupPYBip68Poq4pjsV/yM=";
   };
   parseConfig = text:
     builtins.foldl' (
