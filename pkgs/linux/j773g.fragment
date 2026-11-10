@@ -1,0 +1,51 @@
+# J773g (M4 Mac mini) choices on top of asahi-alarm's linux-asahi 7.1.13
+# config, applied with scripts/kconfig/merge_config.sh in PKGBUILD prepare().
+# Everything else stays the Arch Linux ARM Asahi distro configuration.
+
+# Gravity's M4 GPU driver (Rust), as a module like Gravity's own packaging.
+CONFIG_DRM_ASAHI_M4=m
+
+# Internal speaker: Gravity's J773g driver only (apple,j773g-speaker), with
+# its in-kernel voice-coil thermal model and the -10 dB hardware ceiling
+# (ceiling_dvc 20). Built as modules so it loads only from the DT node;
+# first playback follows docs/j773g-speaker-safety.md (AID36 preset check,
+# quiet first test, sysfs status read before and after). Asahi's generic
+# macaudio machine driver stays off: no second driver may own the amp.
+CONFIG_SND_SOC_APPLE_T8132_SPEAKER=m
+CONFIG_SND_SOC_TAS2764=m
+CONFIG_SND_SOC_APPLE_MCA=m
+CONFIG_SND_SOC_APPLE_MACAUDIO=n
+# 3.5 mm jack (CS42L84 on MCA cluster 2), j773g-headphones.patch.
+CONFIG_SND_SOC_APPLE_T8132_HEADPHONES=m
+CONFIG_SND_SOC_CS42L84=m
+
+# Crash console for the next boot (tools/j773g/init prints it; so can
+# /sys/fs/pstore on the installed system).
+CONFIG_PSTORE=y
+CONFIG_PSTORE_RAM=y
+CONFIG_PSTORE_CONSOLE=y
+CONFIG_PSTORE_PMSG=y
+
+# Gravity's display driver calls non-exported arch helpers (can_set_direct_map,
+# dcache_clean_inval_poc): it only links built in, as Gravity ships it.
+CONFIG_DRM_APPLE=y
+# The mini's HDMI sits behind the DisplayPort PHY (apple,t8122-dptx-phy in
+# the J773g DT): without this driver apple-dcp defers forever on "Failed to
+# get dp-phy: -517" and HDMI stays dark (seen 2026-10-17, netlog).
+CONFIG_PHY_APPLE_DPTX=y
+CONFIG_DRM_APPLE_AUDIO=y
+CONFIG_BACKLIGHT_CLASS_DEVICE=y
+# DRM_APPLE "depends on TYPEC || !TYPEC": a modular Type-C core caps it at =m.
+CONFIG_TYPEC=y
+
+# QEMU smoke tests of the image (tools/j773g-image-smoke.sh): the Asahi config
+# has no PL011 serial, so a virt machine prints nothing. Harmless on the Mac.
+CONFIG_SERIAL_AMBA_PL011=y
+CONFIG_SERIAL_AMBA_PL011_CONSOLE=y
+CONFIG_VIRTIO_PCI=y
+CONFIG_VIRTIO_MMIO=y
+
+# Root filesystem built in: omarchy-mac-boot's initramfs hooks mount and probe
+# the btrfs root before udev has autoloaded modules (seen in the QEMU smoke
+# boot: "unknown filesystem type 'btrfs'", then a by-uuid timeout).
+CONFIG_BTRFS_FS=y
