@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build-j773g:
+    name: Evaluate and build J773g outputs
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 180
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          github_access_token: ${{ secrets.GITHUB_TOKEN }}
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            max-jobs = 1
+            cores = 2
+
+      - name: Evaluate flake and NixOS configuration
+        run: nix flake check --no-build --all-systems
+
+      - name: Build all current Linux outputs
+        run: >-
+          nix build --no-link --print-build-logs
+          .#packages.aarch64-linux.kernel
+          .#packages.aarch64-linux.toplevel
+          .#packages.aarch64-linux.root-image
+          .#checks.aarch64-linux.j773g-kernel-config
+
+      - name: Validate bootstrap script
+        run: |
+          sh -n install.sh
+          sh install.sh --help

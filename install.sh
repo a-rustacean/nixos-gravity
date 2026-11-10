@@ -6,7 +6,7 @@ PATH=/usr/bin:/bin:/usr/sbin:/sbin
 export PATH
 
 DISTRO='NixOS Gravity'
-INSTALLER_BASE=${NIXOS_GRAVITY_INSTALLER_BASE:-https://install.nixos-gravity.org/installer}
+INSTALLER_BASE=${NIXOS_GRAVITY_INSTALLER_BASE:-https://github.com/a-rustacean/nixos-gravity/releases/latest/download}
 INSTALLER_BASE=${INSTALLER_BASE%/}
 
 fail() {
@@ -19,7 +19,7 @@ usage() {
 NixOS Gravity installer for the base M4 Mac mini (Mac16,10 / J773g).
 
 Usage:
-  curl -fsSL https://install.nixos-gravity.org | sh
+  curl -fsSL https://raw.githubusercontent.com/a-rustacean/nixos-gravity/main/install.sh | sh
   sh install.sh --preflight
 
 The installer must be run from macOS as a regular user. The installation kit
