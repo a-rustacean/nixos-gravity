@@ -12,6 +12,9 @@ on:
       - installer/test_assemble_esp.py
       - installer/patch_gravity_urlcache.py
       - installer/test_patch_gravity_urlcache.py
+      - installer/patch_gravity_volbootable.py
+      - installer/fsctl_bootable_helper.py
+      - installer/test_patch_gravity_volbootable.py
       - installer/runtime-source.json
       - installer/make_release_kit.py
       - installer/test_make_release_kit.py
@@ -32,6 +35,9 @@ on:
       - installer/test_assemble_esp.py
       - installer/patch_gravity_urlcache.py
       - installer/test_patch_gravity_urlcache.py
+      - installer/patch_gravity_volbootable.py
+      - installer/fsctl_bootable_helper.py
+      - installer/test_patch_gravity_volbootable.py
       - installer/runtime-source.json
       - installer/make_release_kit.py
       - installer/test_make_release_kit.py
@@ -120,6 +126,7 @@ jobs:
           python3 -m unittest -v
           test_assemble_esp.py
           test_patch_gravity_urlcache.py
+          test_patch_gravity_volbootable.py
           test_make_release_kit.py
 
       - name: Upload stage-two build artifact (not a release)

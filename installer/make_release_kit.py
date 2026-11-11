@@ -11,7 +11,8 @@ import tarfile
 import tempfile
 import zipfile
 
-from patch_gravity_urlcache import patch_runtime
+from patch_gravity_urlcache import patch_runtime as patch_urlcache_runtime
+from patch_gravity_volbootable import patch_runtime as patch_volbootable_runtime
 
 
 HERE = Path(__file__).resolve().parent
@@ -117,7 +118,8 @@ def make_release_kit(
         runtime = kit / "gravity-installer"
         runtime.mkdir()
         safe_extract_runtime(gravity_runtime_archive, runtime)
-        patch_runtime(runtime)
+        patch_urlcache_runtime(runtime)
+        patch_volbootable_runtime(runtime)
 
         installer_data = json.loads(INSTALLER_DATA.read_text())
         installer_data["os_list"][0]["package"] = f"{release_base}/{PACKAGE_NAME}"
@@ -180,6 +182,8 @@ def verify_release_assets(output_dir: Path, version: str) -> None:
             "SHA256SUMS",
             "gravity-installer/installer_data.json",
             "gravity-installer/urlcache.py",
+            "gravity-installer/util.py",
+            "gravity-installer/fsctl_bootable_helper.py",
             "gravity-installer/install.sh",
         }
         missing = required - names
@@ -192,6 +196,14 @@ def verify_release_assets(output_dir: Path, version: str) -> None:
         urlcache = archive.extractfile("gravity-installer/urlcache.py").read().decode()
         if "_request_path(self.url)" not in urlcache:
             raise ValueError("Gravity URLCache redirect-query patch is missing")
+        util = archive.extractfile("gravity-installer/util.py").read().decode()
+        if "fsctl_bootable_helper.py" not in util or "errno.EPERM" not in util:
+            raise ValueError("Gravity VolBootable privilege patch is missing")
+        helper = archive.extractfile(
+            "gravity-installer/fsctl_bootable_helper.py"
+        ).read().decode()
+        if "def validate_target(path):" not in helper or "APFSIOC_VOL_BOOTABLE" not in helper:
+            raise ValueError("privileged VolBootable helper is incomplete")
 
         checksum_file = archive.extractfile("SHA256SUMS").read().decode()
         checksums = {}

@@ -11,6 +11,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import make_release_kit
+from patch_gravity_volbootable import OLD_FUNCTION, OLD_IMPORT
 
 
 URLCACHE_FIXTURE = '''from util import *
@@ -25,6 +26,7 @@ class URLCache:
             path += f"?{random.random()}"
         con.request("GET", path)
 '''
+VOLBOOTABLE_FIXTURE = OLD_IMPORT + "from ctypes import *\n\n" + OLD_FUNCTION
 
 
 def digest(path: Path) -> str:
@@ -41,6 +43,7 @@ class MakeReleaseKitTest(unittest.TestCase):
         install.chmod(0o755)
         (source / "version.tag").write_text("test-version\n")
         (source / "urlcache.py").write_text(URLCACHE_FIXTURE)
+        (source / "util.py").write_text(VOLBOOTABLE_FIXTURE)
         (source / "Frameworks/Python.framework/Versions/3.13/bin/python3.13").write_bytes(
             b"synthetic python runtime binary"
         )
@@ -91,6 +94,14 @@ class MakeReleaseKitTest(unittest.TestCase):
                 )
                 runtime_source = archive.extractfile("gravity-installer/urlcache.py").read().decode()
                 self.assertIn("_request_path(self.url)", runtime_source)
+                util_source = archive.extractfile("gravity-installer/util.py").read().decode()
+                self.assertIn("errno.EPERM", util_source)
+                self.assertIn("fsctl_bootable_helper.py", util_source)
+                helper = archive.extractfile(
+                    "gravity-installer/fsctl_bootable_helper.py"
+                ).read().decode()
+                self.assertIn("APFSIOC_VOL_BOOTABLE", helper)
+                self.assertIn("def validate_target(path):", helper)
                 self.assertEqual((output / "latest").read_text(), "test-1\n")
 
             self.assertTrue((output / "installer-test-1.tar.gz.sha256").is_file())
