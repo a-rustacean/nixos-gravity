@@ -33,7 +33,20 @@ cp -f "$linux"/arch/arm64/boot/dts/apple/*.dts \
     "$uboot"/dts/upstream/src/arm64/apple/
 
 make -C "$uboot" CROSS_COMPILE=aarch64-linux-gnu- apple_m1_defconfig
-make -C "$uboot" CROSS_COMPILE=aarch64-linux-gnu- ARCH=arm -k -j2
+# U-Boot's vendor-DTB option builds every Apple device tree. Several unrelated
+# upstream SoC trees contain floating-point DTS extensions that this pinned
+# U-Boot dtc cannot parse. This kit targets one model, so make its J773g tree
+# the sole default instead of building unrelated Apple DTBs.
+"$uboot/scripts/config" --file "$uboot/.config" \
+    --disable OF_UPSTREAM_BUILD_VENDOR \
+    --set-str DEFAULT_DEVICE_TREE apple/t8132-j773g
+make -C "$uboot" CROSS_COMPILE=aarch64-linux-gnu- ARCH=arm olddefconfig
+grep -Fx 'CONFIG_DEFAULT_DEVICE_TREE="apple/t8132-j773g"' "$uboot/.config"
+if grep -Fxq 'CONFIG_OF_UPSTREAM_BUILD_VENDOR=y' "$uboot/.config"; then
+    printf '%s\n' 'U-Boot vendor DTB sweep must be disabled for the J773g-only build' >&2
+    exit 1
+fi
+make -C "$uboot" CROSS_COMPILE=aarch64-linux-gnu- ARCH=arm -j2
 
 mkdir -p "$out/esp/m1n1" "$out/esp/licenses/gravity-artwork"
 cp "$installer/artwork/LICENSE" "$installer/artwork/README.md" \
@@ -41,8 +54,7 @@ cp "$installer/artwork/LICENSE" "$installer/artwork/README.md" \
 gzip -k "$uboot/u-boot-nodtb.bin"
 cat \
     "$installer/bootloader/build/m1n1.bin" \
-    "$uboot"/dts/upstream/src/arm64/apple/t60*.dtb \
-    "$uboot"/dts/upstream/src/arm64/apple/t81*.dtb \
+    "$uboot/dts/upstream/src/arm64/apple/t8132-j773g.dtb" \
     "$uboot/u-boot-nodtb.bin.gz" \
     > "$out/esp/m1n1/boot.bin"
 
