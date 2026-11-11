@@ -4,6 +4,7 @@
 import argparse
 from pathlib import Path, PurePosixPath
 import shutil
+import stat
 import zipfile
 
 
@@ -24,23 +25,40 @@ def assemble(nixos_esp: Path, gravity_zip: Path, output: Path) -> None:
     if output.exists():
         raise FileExistsError(f"refusing to overwrite existing output: {output}")
 
+    stage_files: list[tuple[PurePosixPath, bytes]] = []
+    seen: set[PurePosixPath] = set()
     with zipfile.ZipFile(gravity_zip) as archive:
-        for name in archive.namelist():
+        for info in archive.infolist():
+            name = info.filename
             member = PurePosixPath(name)
-            if member.is_absolute() or ".." in member.parts:
+            if "\\" in name or member.is_absolute() or ".." in member.parts:
                 raise ValueError(f"unsafe path in Gravity stage-two ZIP: {name}")
-        try:
-            boot_bin = archive.read(STAGE2_MEMBER)
-        except KeyError as error:
-            raise ValueError(f"Gravity stage-two ZIP lacks {STAGE2_MEMBER}") from error
+            if not member.parts or member.parts[0] != "esp" or info.is_dir():
+                continue
+            relative = PurePosixPath(*member.parts[1:])
+            if not relative.parts:
+                continue
+            if stat.S_ISLNK(info.external_attr >> 16):
+                raise ValueError(f"symlink in Gravity stage-two ZIP is not allowed: {name}")
+            if relative in seen:
+                raise ValueError(f"duplicate ESP path in Gravity stage-two ZIP: {relative}")
+            seen.add(relative)
+            stage_files.append((relative, archive.read(info)))
 
+    if PurePosixPath("m1n1/boot.bin") not in seen:
+        raise ValueError(f"Gravity stage-two ZIP lacks {STAGE2_MEMBER}")
+
+    boot_bin = next(data for path, data in stage_files if path == PurePosixPath("m1n1/boot.bin"))
     if not boot_bin:
         raise ValueError("Gravity stage-two boot.bin is empty")
 
     shutil.copytree(nixos_esp, output)
-    boot_path = output / "m1n1/boot.bin"
-    boot_path.parent.mkdir(parents=True, exist_ok=True)
-    boot_path.write_bytes(boot_bin)
+    for relative, data in stage_files:
+        destination = output.joinpath(*relative.parts)
+        if destination.exists() or destination.is_symlink():
+            raise ValueError(f"Gravity stage-two file would overwrite NixOS ESP content: {relative}")
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(data)
 
 
 def main() -> None:

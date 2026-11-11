@@ -23,6 +23,7 @@ class AssembleEspTest(unittest.TestCase):
             stage2 = root / "stage2.zip"
             with zipfile.ZipFile(stage2, "w") as archive:
                 archive.writestr(STAGE2_MEMBER, b"gravity-boot-bin")
+                archive.writestr("esp/licenses/gravity-artwork/LICENSE", b"Gravity artwork license")
 
             output = root / "merged-esp"
             assemble(esp, stage2, output)
@@ -30,6 +31,10 @@ class AssembleEspTest(unittest.TestCase):
             for relative in REQUIRED_FILES:
                 self.assertEqual((output / relative).read_bytes(), relative.encode())
             self.assertEqual((output / "m1n1/boot.bin").read_bytes(), b"gravity-boot-bin")
+            self.assertEqual(
+                (output / "licenses/gravity-artwork/LICENSE").read_bytes(),
+                b"Gravity artwork license",
+            )
 
     def test_rejects_unsafe_archive_paths(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -48,6 +53,25 @@ class AssembleEspTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "unsafe path"):
                 assemble(esp, stage2, root / "merged-esp")
 
+    def test_refuses_to_overwrite_nixos_esp_files(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            esp = root / "nixos-esp"
+            for relative in REQUIRED_FILES:
+                path = esp / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b"NixOS")
+            existing = esp / "m1n1/boot.bin"
+            existing.parent.mkdir(parents=True, exist_ok=True)
+            existing.write_bytes(b"NixOS ESP content")
+
+            stage2 = root / "stage2.zip"
+            with zipfile.ZipFile(stage2, "w") as archive:
+                archive.writestr(STAGE2_MEMBER, b"gravity-boot-bin")
+
+            with self.assertRaisesRegex(ValueError, "overwrite NixOS ESP"):
+                assemble(esp, stage2, root / "merged-esp")
+
     def test_makes_gravity_installer_zip_with_expected_paths(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -60,6 +84,7 @@ class AssembleEspTest(unittest.TestCase):
             stage2 = root / "stage2.zip"
             with zipfile.ZipFile(stage2, "w") as archive:
                 archive.writestr(STAGE2_MEMBER, b"gravity-boot-bin")
+                archive.writestr("esp/licenses/gravity-artwork/LICENSE", b"Gravity artwork license")
 
             root_image = root / "root.img"
             root_image.write_bytes(b"N" * 4096)
@@ -71,6 +96,7 @@ class AssembleEspTest(unittest.TestCase):
                 self.assertEqual(archive.read("root.img"), b"N" * 4096)
                 self.assertEqual(archive.read("esp/m1n1/boot.bin"), b"gravity-boot-bin")
                 self.assertIn("esp/EFI/Linux/nixos-gravity.efi", archive.namelist())
+                self.assertIn("esp/licenses/gravity-artwork/LICENSE", archive.namelist())
                 self.assertIn("BOOT-SOURCES.json", archive.namelist())
 
     def test_rejects_unaligned_root_image(self):

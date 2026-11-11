@@ -10,6 +10,13 @@ on:
       - installer/assemble_esp.py
       - installer/make_installer_package.py
       - installer/test_assemble_esp.py
+      - installer/installer_data.json
+      - installer/check_data.py
+      - flake.nix
+      - flake.lock
+      - configuration.nix
+      - modules/**
+      - pkgs/linux/**
   pull_request:
     paths:
       - .github/workflows/gravity-boot.yml
@@ -18,6 +25,13 @@ on:
       - installer/assemble_esp.py
       - installer/make_installer_package.py
       - installer/test_assemble_esp.py
+      - installer/installer_data.json
+      - installer/check_data.py
+      - flake.nix
+      - flake.lock
+      - configuration.nix
+      - modules/**
+      - pkgs/linux/**
   workflow_dispatch:
 
 permissions:
@@ -99,5 +113,53 @@ jobs:
         with:
           name: gravity-j773g-stage2
           path: out/
+          if-no-files-found: error
+          retention-days: 30
+
+  package-installer-input:
+    name: Assemble Gravity installer ZIP input
+    needs: build-stage-two
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 180
+    steps:
+      - name: Check out this repository
+        uses: actions/checkout@v4
+
+      - name: Download verified Gravity stage-two artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: gravity-j773g-stage2
+          path: ${{ runner.temp }}/gravity-stage2
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            max-jobs = 1
+            cores = 2
+
+      - name: Build NixOS ESP and root image
+        run: |
+          nix build --print-build-logs \
+            --out-link "$RUNNER_TEMP/nixos-esp" \
+            .#packages.aarch64-linux.nixos-esp
+          nix build --print-build-logs \
+            --out-link "$RUNNER_TEMP/root-image" \
+            .#packages.aarch64-linux.root-image
+
+      - name: Assemble and verify Gravity installer ZIP input
+        run: |
+          python3 installer/make_installer_package.py \
+            "$RUNNER_TEMP/nixos-esp" \
+            "$RUNNER_TEMP/gravity-stage2/gravity-j773g-stage2.zip" \
+            "$RUNNER_TEMP/root-image" \
+            "$RUNNER_TEMP/nixos-gravity-j773g.zip"
+
+      - name: Upload assembled installer input (not a release)
+        uses: actions/upload-artifact@v4
+        with:
+          name: nixos-gravity-j773g-installer-input
+          path: ${{ runner.temp }}/nixos-gravity-j773g.zip
           if-no-files-found: error
           retention-days: 30
