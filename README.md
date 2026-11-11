@@ -10,7 +10,7 @@ Read [`FEASIBILITY.md`](FEASIBILITY.md) before installing. It describes the prop
 
 ## Current implementation status
 
-The repository now has a pinned Nix flake for a J773g NixOS system, a Gravity Linux 7.1.13 kernel package/config, and an ext4 root-image derivation. It also defines a NixOS UKI and a static ESP tree with the systemd-boot fallback loader. The kernel configuration is based on Omarchy-M4-Native's J773g Gravity kernel config. The full Gravity m1n1/U-Boot stage, firmware flow, adapted installer kit, credentials setup, and target-hardware boot tests are still outstanding. It is **not a tested NixOS installation kit** yet.
+The repository has a pinned Nix flake for a J773g NixOS system, a Gravity Linux 7.1.13 kernel package/config, an ext4 root-image derivation, and a NixOS UKI/ESP tree. CI has successfully built and checksum-verified a pinned Gravity m1n1/U-Boot stage-two artifact for J773g. A follow-on CI job is assembling those boot files with the NixOS ESP and root image in the ZIP layout expected by Gravity's installer. The firmware flow, adapted interactive installer kit, credentials setup, and target-hardware boot/recovery/rollback tests remain outstanding. It is **not a tested NixOS installation kit** yet.
 
 The bootstrap's preflight is safe to run, but a full installation is not ready. The bootstrap script is hosted in this GitHub repository, and the configured release base is GitHub Releases. A complete installer kit has not been published or verified yet. Do not run the install command until a tested kit and recovery guide are released.
 
