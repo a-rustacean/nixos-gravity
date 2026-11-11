@@ -10,6 +10,11 @@ on:
       - installer/assemble_esp.py
       - installer/make_installer_package.py
       - installer/test_assemble_esp.py
+      - installer/patch_gravity_urlcache.py
+      - installer/test_patch_gravity_urlcache.py
+      - installer/runtime-source.json
+      - installer/make_release_kit.py
+      - installer/test_make_release_kit.py
       - installer/installer_data.json
       - installer/check_data.py
       - flake.nix
@@ -25,6 +30,11 @@ on:
       - installer/assemble_esp.py
       - installer/make_installer_package.py
       - installer/test_assemble_esp.py
+      - installer/patch_gravity_urlcache.py
+      - installer/test_patch_gravity_urlcache.py
+      - installer/runtime-source.json
+      - installer/make_release_kit.py
+      - installer/test_make_release_kit.py
       - installer/installer_data.json
       - installer/check_data.py
       - flake.nix
@@ -106,7 +116,11 @@ jobs:
 
       - name: Test ESP assembly contract
         working-directory: installer
-        run: python3 -m unittest -v test_assemble_esp.py
+        run: >-
+          python3 -m unittest -v
+          test_assemble_esp.py
+          test_patch_gravity_urlcache.py
+          test_make_release_kit.py
 
       - name: Upload stage-two build artifact (not a release)
         uses: actions/upload-artifact@v4
@@ -156,10 +170,32 @@ jobs:
             "$RUNNER_TEMP/root-image" \
             "$RUNNER_TEMP/nixos-gravity-j773g.zip"
 
+      - name: Assemble versioned installer assets (test artifact only)
+        run: |
+          runtime_url=$(python3 -c 'import json; print(json.load(open("installer/runtime-source.json"))["url"])')
+          runtime_sha=$(python3 -c 'import json; print(json.load(open("installer/runtime-source.json"))["sha256"])')
+          runtime_archive="$RUNNER_TEMP/gravity-installer-runtime.tar.gz"
+          curl --fail --silent --show-error --location --retry 3 \
+            "$runtime_url" --output "$runtime_archive"
+          printf '%s  %s\n' "$runtime_sha" "$runtime_archive" | sha256sum --check --status
+          python3 installer/make_release_kit.py \
+            "$runtime_archive" \
+            "$RUNNER_TEMP/nixos-gravity-j773g.zip" \
+            "ci-${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}" \
+            "$RUNNER_TEMP/release-assets"
+
       - name: Upload assembled installer input (not a release)
         uses: actions/upload-artifact@v4
         with:
           name: nixos-gravity-j773g-installer-input
           path: ${{ runner.temp }}/nixos-gravity-j773g.zip
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload versioned installer assets (not a release)
+        uses: actions/upload-artifact@v4
+        with:
+          name: nixos-gravity-j773g-test-kit
+          path: ${{ runner.temp }}/release-assets/
           if-no-files-found: error
           retention-days: 30

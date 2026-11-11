@@ -8,6 +8,7 @@ from pathlib import Path
 
 root = Path(__file__).resolve().parent.parent
 sources = json.loads((root / "installer/boot-sources.json").read_text())
+runtime = json.loads((root / "installer/runtime-source.json").read_text())
 workflow = (root / ".github/workflows/gravity-boot.yml").read_text()
 
 for key, env_name in (
@@ -20,4 +21,9 @@ for key, env_name in (
     assert re.fullmatch(r"[0-9a-f]{40}", revision), f"{key} is not pinned to a full commit"
     assert f"{env_name}: {revision}" in workflow, f"{key} pin differs from workflow"
 
-print("Gravity m1n1, Linux DTB, and U-Boot sources are pinned consistently")
+assert runtime["repository"] == sources["gravity_installer"]["repository"]
+assert runtime["revision"] == sources["gravity_installer"]["revision"]
+assert runtime["url"].startswith("https://"), "Gravity installer runtime must use HTTPS"
+assert re.fullmatch(r"[0-9a-f]{64}", runtime["sha256"]), "runtime must have a SHA-256 pin"
+
+print("Gravity installer runtime, m1n1, Linux DTB, and U-Boot sources are pinned consistently")

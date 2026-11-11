@@ -49,3 +49,8 @@ jobs:
           sh -n install.sh
           sh install.sh --help
           python3 installer/check_data.py
+          python3 installer/check_boot_sources.py
+          PYTHONDONTWRITEBYTECODE=1 python3 -m unittest -v \
+            installer/test_assemble_esp.py \
+            installer/test_patch_gravity_urlcache.py \
+            installer/test_make_release_kit.py
