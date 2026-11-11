@@ -37,6 +37,11 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def is_appledouble_path(path: str | PurePosixPath) -> bool:
+    """Whether a path is an AppleDouble resource-fork sidecar, hidden by macOS tar."""
+    return any(part.startswith("._") for part in PurePosixPath(path).parts)
+
+
 def safe_extract_runtime(archive_path: Path, destination: Path) -> None:
     with tarfile.open(archive_path, "r:gz") as archive:
         for member in archive.getmembers():
@@ -145,8 +150,9 @@ def make_release_kit(
 
         checksum_lines = []
         for path in sorted(kit.rglob("*")):
-            if path.is_file():
-                checksum_lines.append(f"{sha256(path)}  {path.relative_to(kit).as_posix()}")
+            relative_path = path.relative_to(kit).as_posix()
+            if path.is_file() and not is_appledouble_path(relative_path):
+                checksum_lines.append(f"{sha256(path)}  {relative_path}")
         (kit / "SHA256SUMS").write_text("\n".join(checksum_lines) + "\n")
 
         staged_package = workspace / PACKAGE_NAME
@@ -214,12 +220,16 @@ def verify_release_assets(output_dir: Path, version: str) -> None:
                 raise ValueError("release kit contains a malformed SHA256SUMS entry")
             if path.is_absolute() or ".." in path.parts or name in checksums:
                 raise ValueError(f"release kit contains an unsafe or duplicate checksum path: {name}")
+            if is_appledouble_path(path):
+                raise ValueError(f"release kit must not checksum macOS-hidden AppleDouble metadata: {name}")
             checksums[name] = digest
 
         regular_files = {
             member.name
             for member in archive.getmembers()
-            if member.isfile() and member.name != "SHA256SUMS"
+            if member.isfile()
+            and member.name != "SHA256SUMS"
+            and not is_appledouble_path(member.name)
         }
         missing_checksums = regular_files - checksums.keys()
         if missing_checksums:

@@ -44,6 +44,9 @@ class MakeReleaseKitTest(unittest.TestCase):
         (source / "version.tag").write_text("test-version\n")
         (source / "urlcache.py").write_text(URLCACHE_FIXTURE)
         (source / "util.py").write_text(VOLBOOTABLE_FIXTURE)
+        (source / "Frameworks/Python.framework/Versions/3.13/._python3.13").write_bytes(
+            b"AppleDouble resource-fork fixture"
+        )
         (source / "Frameworks/Python.framework/Versions/3.13/bin/python3.13").write_bytes(
             b"synthetic python runtime binary"
         )
@@ -87,7 +90,16 @@ class MakeReleaseKitTest(unittest.TestCase):
                     for member in archive.getmembers()
                     if member.isfile() and member.name != "SHA256SUMS"
                 }
-                self.assertTrue(regular_files <= checksums.keys())
+                checksum_files = {
+                    name for name in regular_files
+                    if not make_release_kit.is_appledouble_path(name)
+                }
+                self.assertTrue(checksum_files <= checksums.keys())
+                appledouble = (
+                    "gravity-installer/Frameworks/Python.framework/Versions/3.13/._python3.13"
+                )
+                self.assertIn(appledouble, regular_files)
+                self.assertNotIn(appledouble, checksums)
                 self.assertIn(
                     "gravity-installer/Frameworks/Python.framework/Versions/3.13/bin/python3.13",
                     checksums,
@@ -103,6 +115,17 @@ class MakeReleaseKitTest(unittest.TestCase):
                 self.assertIn("APFSIOC_VOL_BOOTABLE", helper)
                 self.assertIn("def validate_target(path):", helper)
                 self.assertEqual((output / "latest").read_text(), "test-1\n")
+
+            # macOS tar consumes AppleDouble sidecars into resource forks instead of
+            # leaving them as files. The install-time SHA256SUMS check must still pass.
+            with tempfile.TemporaryDirectory() as extracted:
+                with tarfile.open(kit_archive, "r:gz") as archive:
+                    archive.extractall(extracted, filter="data")
+                appledouble_path = Path(extracted) / appledouble
+                appledouble_path.unlink()
+                for line in (Path(extracted) / "SHA256SUMS").read_text().splitlines():
+                    expected, _, name = line.partition("  ")
+                    self.assertEqual(digest(Path(extracted) / name), expected, name)
 
             self.assertTrue((output / "installer-test-1.tar.gz.sha256").is_file())
             self.assertTrue((output / "nixos-gravity-j773g.zip.sha256").is_file())
