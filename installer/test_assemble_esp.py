@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import os
 import tempfile
 import unittest
 import zipfile
@@ -114,11 +115,22 @@ class AssembleEspTest(unittest.TestCase):
 
             root_image = root / "root.img"
             root_image.write_bytes(b"N" * 4096)
+            # Nix store files can have epoch timestamps, before ZIP's 1980 minimum.
+            os.utime(esp / "EFI/BOOT/BOOTAA64.EFI", (0, 0))
+            os.utime(root_image, (0, 0))
             output = root / "nixos-gravity-j773g.zip"
             make_package(esp, stage2, root_image, output)
 
             with zipfile.ZipFile(output) as archive:
                 self.assertIsNone(archive.testzip())
+                self.assertEqual(
+                    archive.getinfo("esp/EFI/BOOT/BOOTAA64.EFI").date_time,
+                    (1980, 1, 1, 0, 0, 0),
+                )
+                self.assertEqual(
+                    archive.getinfo("root.img").date_time,
+                    (1980, 1, 1, 0, 0, 0),
+                )
                 self.assertEqual(archive.read("root.img"), b"N" * 4096)
                 self.assertEqual(archive.read("esp/m1n1/boot.bin"), b"gravity-boot-bin")
                 self.assertIn("esp/EFI/Linux/nixos-gravity.efi", archive.namelist())

@@ -4,6 +4,7 @@
 import argparse
 import json
 from pathlib import Path
+import shutil
 import tempfile
 import zipfile
 
@@ -13,6 +14,13 @@ from assemble_esp import assemble
 HERE = Path(__file__).resolve().parent
 BOOT_SOURCES = HERE / "boot-sources.json"
 INSTALLER_DATA = HERE / "installer_data.json"
+
+
+def _write_zip_file(package: zipfile.ZipFile, path: Path, arcname: str) -> None:
+    info = zipfile.ZipInfo.from_file(path, arcname, strict_timestamps=False)
+    info.compress_type = zipfile.ZIP_DEFLATED
+    with path.open("rb") as source, package.open(info, "w") as destination:
+        shutil.copyfileobj(source, destination)
 
 
 def make_package(nixos_esp: Path, gravity_stage2_zip: Path, root_image: Path, output: Path) -> None:
@@ -48,9 +56,9 @@ def make_package(nixos_esp: Path, gravity_stage2_zip: Path, root_image: Path, ou
                 ) as package:
                     for path in sorted(esp.rglob("*")):
                         if path.is_file():
-                            package.write(path, f"esp/{path.relative_to(esp).as_posix()}")
-                    package.write(root_image, "root.img")
-                    package.write(BOOT_SOURCES, "BOOT-SOURCES.json")
+                            _write_zip_file(package, path, f"esp/{path.relative_to(esp).as_posix()}")
+                    _write_zip_file(package, root_image, "root.img")
+                    _write_zip_file(package, BOOT_SOURCES, "BOOT-SOURCES.json")
 
             with zipfile.ZipFile(output) as package:
                 bad_member = package.testzip()
