@@ -54,4 +54,5 @@ jobs:
             installer/test_assemble_esp.py \
             installer/test_patch_gravity_urlcache.py \
             installer/test_patch_gravity_volbootable.py \
+            installer/test_patch_gravity_preboot_chflags.py \
             installer/test_make_release_kit.py

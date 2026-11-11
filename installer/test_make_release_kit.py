@@ -12,6 +12,7 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import make_release_kit
 from patch_gravity_volbootable import OLD_FUNCTION, OLD_IMPORT
+from patch_gravity_preboot_chflags import OLD_METHOD
 
 
 URLCACHE_FIXTURE = '''from util import *
@@ -27,6 +28,7 @@ class URLCache:
         con.request("GET", path)
 '''
 VOLBOOTABLE_FIXTURE = OLD_IMPORT + "from ctypes import *\n\n" + OLD_FUNCTION
+STUB_FIXTURE = "import os, os.path, sys, subprocess, logging\n\nclass StubInstaller:\n" + OLD_METHOD
 
 
 def digest(path: Path) -> str:
@@ -44,6 +46,7 @@ class MakeReleaseKitTest(unittest.TestCase):
         (source / "version.tag").write_text("test-version\n")
         (source / "urlcache.py").write_text(URLCACHE_FIXTURE)
         (source / "util.py").write_text(VOLBOOTABLE_FIXTURE)
+        (source / "stub.py").write_text(STUB_FIXTURE)
         (source / "Frameworks/Python.framework/Versions/3.13/._python3.13").write_bytes(
             b"AppleDouble resource-fork fixture"
         )
@@ -114,6 +117,12 @@ class MakeReleaseKitTest(unittest.TestCase):
                 ).read().decode()
                 self.assertIn("APFSIOC_VOL_BOOTABLE", helper)
                 self.assertIn("def validate_target(path):", helper)
+                stub = archive.extractfile("gravity-installer/stub.py").read().decode()
+                self.assertIn("preboot_chflags_helper.py", stub)
+                preboot_helper = archive.extractfile(
+                    "gravity-installer/preboot_chflags_helper.py"
+                ).read().decode()
+                self.assertIn('stores != ["disk0s3"]', preboot_helper)
                 self.assertEqual((output / "latest").read_text(), "test-1\n")
 
             # macOS tar consumes AppleDouble sidecars into resource forks instead of

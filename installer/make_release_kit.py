@@ -13,6 +13,7 @@ import zipfile
 
 from patch_gravity_urlcache import patch_runtime as patch_urlcache_runtime
 from patch_gravity_volbootable import patch_runtime as patch_volbootable_runtime
+from patch_gravity_preboot_chflags import patch_runtime as patch_preboot_chflags_runtime
 
 
 HERE = Path(__file__).resolve().parent
@@ -125,6 +126,7 @@ def make_release_kit(
         safe_extract_runtime(gravity_runtime_archive, runtime)
         patch_urlcache_runtime(runtime)
         patch_volbootable_runtime(runtime)
+        patch_preboot_chflags_runtime(runtime)
 
         installer_data = json.loads(INSTALLER_DATA.read_text())
         installer_data["os_list"][0]["package"] = f"{release_base}/{PACKAGE_NAME}"
@@ -190,6 +192,8 @@ def verify_release_assets(output_dir: Path, version: str) -> None:
             "gravity-installer/urlcache.py",
             "gravity-installer/util.py",
             "gravity-installer/fsctl_bootable_helper.py",
+            "gravity-installer/stub.py",
+            "gravity-installer/preboot_chflags_helper.py",
             "gravity-installer/install.sh",
         }
         missing = required - names
@@ -210,6 +214,14 @@ def verify_release_assets(output_dir: Path, version: str) -> None:
         ).read().decode()
         if "def validate_target(path):" not in helper or "APFSIOC_VOL_BOOTABLE" not in helper:
             raise ValueError("privileged VolBootable helper is incomplete")
+        stub = archive.extractfile("gravity-installer/stub.py").read().decode()
+        if "preboot_chflags_helper.py" not in stub or 'flags not in ("schg", "noschg")' not in stub:
+            raise ValueError("Gravity Preboot chflags privilege patch is missing")
+        preboot_helper = archive.extractfile(
+            "gravity-installer/preboot_chflags_helper.py"
+        ).read().decode()
+        if "def validate_target(path):" not in preboot_helper or 'stores != ["disk0s3"]' not in preboot_helper:
+            raise ValueError("privileged Preboot chflags helper is incomplete")
 
         checksum_file = archive.extractfile("SHA256SUMS").read().decode()
         checksums = {}
