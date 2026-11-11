@@ -53,6 +53,12 @@ def assemble(nixos_esp: Path, gravity_zip: Path, output: Path) -> None:
         raise ValueError("Gravity stage-two boot.bin is empty")
 
     shutil.copytree(nixos_esp, output)
+    # Nix store trees are intentionally read-only. copytree preserves those
+    # permissions, but Gravity's stage-two files must be added afterward.
+    for directory in (output, *(path for path in output.rglob("*") if path.is_dir())):
+        if not directory.is_symlink():
+            directory.chmod(directory.stat().st_mode | stat.S_IWUSR)
+
     for relative, data in stage_files:
         destination = output.joinpath(*relative.parts)
         if destination.exists() or destination.is_symlink():

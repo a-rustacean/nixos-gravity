@@ -72,6 +72,32 @@ class AssembleEspTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "overwrite NixOS ESP"):
                 assemble(esp, stage2, root / "merged-esp")
 
+    def test_merges_into_read_only_nixos_esp_tree(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            esp = root / "nixos-esp"
+            for relative in REQUIRED_FILES:
+                path = esp / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b"NixOS ESP")
+
+            stage2 = root / "stage2.zip"
+            with zipfile.ZipFile(stage2, "w") as archive:
+                archive.writestr(STAGE2_MEMBER, b"gravity-boot-bin")
+
+            source_directories = [esp, *(path for path in esp.rglob("*") if path.is_dir())]
+            for directory in source_directories:
+                directory.chmod(0o555)
+            try:
+                output = root / "merged-esp"
+                assemble(esp, stage2, output)
+                self.assertEqual((output / "m1n1/boot.bin").read_bytes(), b"gravity-boot-bin")
+                for relative in REQUIRED_FILES:
+                    self.assertEqual((output / relative).read_bytes(), b"NixOS ESP")
+            finally:
+                for directory in source_directories:
+                    directory.chmod(0o755)
+
     def test_makes_gravity_installer_zip_with_expected_paths(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
