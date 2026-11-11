@@ -8,6 +8,7 @@ on:
       - installer/boot-sources.json
       - installer/build-gravity-stage2.sh
       - installer/assemble_esp.py
+      - installer/make_installer_package.py
       - installer/test_assemble_esp.py
   pull_request:
     paths:
@@ -15,6 +16,7 @@ on:
       - installer/boot-sources.json
       - installer/build-gravity-stage2.sh
       - installer/assemble_esp.py
+      - installer/make_installer_package.py
       - installer/test_assemble_esp.py
   workflow_dispatch:
 
