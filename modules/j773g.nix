@@ -26,6 +26,14 @@ in
     boot.initrd.systemd.enable = true;
     boot.initrd.systemd.tpm2.enable = false;
     boot.initrd.compressor = "gzip";
+    # The base M4 Mac mini boots from Apple's built-in NVMe controller. The
+    # generic NixOS initrd module set includes AHCI/SATA drivers that this
+    # Gravity kernel intentionally does not build, which makes module closure
+    # checks fail and is unnecessary for this target.
+    boot.initrd.includeDefaultModules = false;
+    # ext4 handles ext2 filesystems in this kernel; there is no separate
+    # CONFIG_EXT2_FS module to include in the initrd.
+    boot.initrd.availableKernelModules.ext2 = lib.mkForce false;
 
     boot.kernelParams = [
       "idle=nop"

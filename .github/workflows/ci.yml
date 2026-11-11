@@ -40,7 +40,9 @@ jobs:
           .#packages.aarch64-linux.kernel
           .#packages.aarch64-linux.toplevel
           .#packages.aarch64-linux.root-image
+          .#packages.aarch64-linux.nixos-esp
           .#checks.aarch64-linux.j773g-kernel-config
+          .#checks.aarch64-linux.j773g-esp
 
       - name: Validate bootstrap script
         run: |
