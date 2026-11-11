@@ -48,3 +48,4 @@ jobs:
         run: |
           sh -n install.sh
           sh install.sh --help
+          python3 installer/check_data.py

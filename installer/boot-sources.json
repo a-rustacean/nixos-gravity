@@ -1,0 +1,18 @@
+{
+  "gravity_installer": {
+    "repository": "GravityLinux/installer",
+    "revision": "6420623289fe7544cb8589b658355e57f0290fcc"
+  },
+  "gravity_bootloader": {
+    "repository": "GravityLinux/bootloader",
+    "revision": "950e6b7f268e71cf77889f27a760782bf898b651"
+  },
+  "gravity_linux": {
+    "repository": "GravityLinux/linux",
+    "revision": "4fc326f6c25ccceb7515e2635c22e01fde5d3bac"
+  },
+  "gravity_u_boot": {
+    "repository": "GravityLinux/u-boot",
+    "revision": "a44f46af0aa17e48572e0d46c0d082886ee353c3"
+  }
+}

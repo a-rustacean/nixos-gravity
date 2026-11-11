@@ -1,0 +1,32 @@
+{
+  "os_list": [
+    {
+      "name": "NixOS Gravity — M4 Mac mini (experimental)",
+      "default_os_name": "NixOS Gravity",
+      "boot_object": "m1n1.bin",
+      "next_object": "m1n1/boot.bin",
+      "package": "nixos-gravity-j773g.zip",
+      "supported_fw": [
+        "26.6.2"
+      ],
+      "partitions": [
+        {
+          "name": "EFI",
+          "type": "EFI",
+          "size": "524288000B",
+          "format": "fat",
+          "copy_firmware": true,
+          "copy_installer_data": true,
+          "source": "esp"
+        },
+        {
+          "name": "Root",
+          "type": "Linux",
+          "size": "34359738368B",
+          "expand": true,
+          "image": "root.img"
+        }
+      ]
+    }
+  ]
+}

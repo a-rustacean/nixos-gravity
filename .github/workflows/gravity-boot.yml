@@ -1,0 +1,101 @@
+name: Gravity stage-two boot bundle
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/gravity-boot.yml
+      - installer/boot-sources.json
+      - installer/build-gravity-stage2.sh
+      - installer/assemble_esp.py
+      - installer/test_assemble_esp.py
+  pull_request:
+    paths:
+      - .github/workflows/gravity-boot.yml
+      - installer/boot-sources.json
+      - installer/build-gravity-stage2.sh
+      - installer/assemble_esp.py
+      - installer/test_assemble_esp.py
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build-stage-two:
+    name: Build pinned Gravity m1n1 + U-Boot payload
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      GRAVITY_INSTALLER_REF: 6420623289fe7544cb8589b658355e57f0290fcc
+      GRAVITY_BOOTLOADER_REF: 950e6b7f268e71cf77889f27a760782bf898b651
+      GRAVITY_LINUX_REF: 4fc326f6c25ccceb7515e2635c22e01fde5d3bac
+      GRAVITY_UBOOT_REF: a44f46af0aa17e48572e0d46c0d082886ee353c3
+      RUSTUP_TOOLCHAIN: 1.93.1
+    steps:
+      - name: Check out this repository
+        uses: actions/checkout@v4
+
+      - name: Check pinned source metadata
+        run: python3 installer/check_boot_sources.py
+
+      - name: Check out Gravity installer and its pinned submodules
+        uses: actions/checkout@v4
+        with:
+          repository: GravityLinux/installer
+          ref: ${{ env.GRAVITY_INSTALLER_REF }}
+          path: gravity-installer
+          submodules: recursive
+
+      - name: Check out Gravity Linux device trees
+        uses: actions/checkout@v4
+        with:
+          repository: GravityLinux/linux
+          ref: ${{ env.GRAVITY_LINUX_REF }}
+          path: linux
+          sparse-checkout: arch/arm64/boot/dts/apple/
+
+      - name: Check out Gravity U-Boot
+        uses: actions/checkout@v4
+        with:
+          repository: GravityLinux/u-boot
+          ref: ${{ env.GRAVITY_UBOOT_REF }}
+          path: u-boot
+
+      - name: Verify the bootloader submodule pin
+        run: |
+          actual=$(git -C gravity-installer/bootloader rev-parse HEAD)
+          test "$actual" = "$GRAVITY_BOOTLOADER_REF"
+
+      - name: Install cross-build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            bc bison device-tree-compiler flex gcc-aarch64-linux-gnu \
+            imagemagick libgnutls28-dev libssl-dev python3-dev swig zip
+          if ! command -v magick >/dev/null 2>&1; then
+            mkdir -p "$HOME/.local/bin"
+            ln -s "$(command -v convert)" "$HOME/.local/bin/magick"
+            echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          fi
+          rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal
+          rustup target add aarch64-unknown-none-softfloat --toolchain "$RUSTUP_TOOLCHAIN"
+
+      - name: Build stage-two payload
+        run: installer/build-gravity-stage2.sh
+
+      - name: Test ESP assembly contract
+        working-directory: installer
+        run: python3 -m unittest -v test_assemble_esp.py
+
+      - name: Upload stage-two build artifact (not a release)
+        uses: actions/upload-artifact@v4
+        with:
+          name: gravity-j773g-stage2
+          path: out/
+          if-no-files-found: error
+          retention-days: 30
