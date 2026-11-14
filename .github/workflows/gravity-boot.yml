@@ -113,8 +113,10 @@ jobs:
           ref: ${{ env.GRAVITY_UBOOT_REF }}
           path: u-boot
 
-      - name: Verify the bootloader submodule pin
+      - name: Check out the pinned Gravity bootloader revision
         run: |
+          git -C gravity-installer/bootloader fetch --depth=1 origin "$GRAVITY_BOOTLOADER_REF"
+          git -C gravity-installer/bootloader checkout --detach "$GRAVITY_BOOTLOADER_REF"
           actual=$(git -C gravity-installer/bootloader rev-parse HEAD)
           test "$actual" = "$GRAVITY_BOOTLOADER_REF"
 
