@@ -10,6 +10,7 @@ import sys
 
 
 APFS_CONTENT = "41504653-0000-11AA-AA11-00306543ECAC"
+APFS_PARTITION_CONTENT = "Apple_APFS"
 PREBOOT_MOUNT = "/Volumes/Preboot"
 SYSTEM_NAME = "NixOS Gravity"
 DATA_NAME = "NixOS Gravity - Data"
@@ -26,15 +27,15 @@ def disk_info(target):
     return plistlib.loads(raw)
 
 
-def apfs_container_info(container_ref):
+def apfs_containers():
     raw = subprocess.check_output(
-        ["/usr/sbin/diskutil", "apfs", "list", "-plist", container_ref]
+        ["/usr/sbin/diskutil", "apfs", "list", "-plist"]
     )
-    containers = plistlib.loads(raw).get("Containers", [])
-    matches = [
-        item for item in containers
-        if item.get("ContainerReference") == container_ref
-    ]
+    return plistlib.loads(raw).get("Containers", [])
+
+
+def unique_container(containers, container_ref):
+    matches = [item for item in containers if item.get("ContainerReference") == container_ref]
     if len(matches) != 1:
         raise ValueError("could not uniquely identify the target APFS container")
     return matches[0]
@@ -71,12 +72,56 @@ def validate_target(path):
     container_ref = preboot.get("APFSContainerReference")
     if not container_ref:
         raise ValueError("Preboot has no APFS container")
-    container = apfs_container_info(container_ref)
+    containers = apfs_containers()
+    container = unique_container(containers, container_ref)
     stores = [
         item.get("DeviceIdentifier") for item in container.get("PhysicalStores", [])
     ]
-    if stores != ["disk0s3"]:
-        raise ValueError("NixOS Preboot must be on the dedicated disk0s3 stub")
+    if len(stores) != 1 or not re.fullmatch(r"disk0s[1-9][0-9]*", stores[0] or ""):
+        raise ValueError("NixOS Preboot must be on one dedicated disk0 APFS partition")
+
+    booted = disk_info("/")
+    if booted.get("MountPoint") != "/" or booted.get("Content", "").upper() != APFS_CONTENT:
+        raise ValueError("could not verify the currently booted macOS APFS volume")
+    boot_container_ref = booted.get("APFSContainerReference")
+    if not boot_container_ref or boot_container_ref == container_ref:
+        raise ValueError("refusing to modify the currently booted macOS container")
+    boot_container = unique_container(containers, boot_container_ref)
+    boot_stores = {
+        item.get("APFSPhysicalStore") for item in booted.get("APFSPhysicalStores", [])
+    }
+    boot_container_stores = {
+        item.get("DeviceIdentifier") for item in boot_container.get("PhysicalStores", [])
+    }
+    if not boot_stores or not boot_stores.issubset(boot_container_stores):
+        raise ValueError("could not match booted macOS to its APFS physical store")
+
+    protected_stores = {
+        item.get("DeviceIdentifier")
+        for other in containers
+        if other.get("ContainerReference") != container_ref
+        for item in other.get("PhysicalStores", [])
+    }
+    protected_stores.update(boot_stores)
+    if stores[0] in protected_stores:
+        raise ValueError("NixOS Preboot physical store overlaps another APFS container")
+
+    whole_disk = disk_info("disk0")
+    if (
+        whole_disk.get("DeviceIdentifier") != "disk0"
+        or not whole_disk.get("WholeDisk")
+        or not whole_disk.get("Internal")
+    ):
+        raise ValueError("disk0 is not the expected internal physical disk")
+    physical_store = disk_info(stores[0])
+    if (
+        physical_store.get("DeviceIdentifier") != stores[0]
+        or physical_store.get("ParentWholeDisk") != "disk0"
+        or not physical_store.get("PartitionMapPartition")
+        or physical_store.get("Content") not in (APFS_PARTITION_CONTENT, APFS_CONTENT)
+        or physical_store.get("APFSContainerReference") != container_ref
+    ):
+        raise ValueError("NixOS Preboot is not on its own APFS partition on disk0")
 
     volumes = container.get("Volumes", [])
     preboot_volumes = [
@@ -109,6 +154,7 @@ def validate_target(path):
         "group_uuid": group_uuid,
         "preboot_device": preboot.get("DeviceIdentifier"),
         "physical_store": stores[0],
+        "booted_container": boot_container_ref,
     }
 
 

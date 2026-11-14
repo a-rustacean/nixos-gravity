@@ -220,7 +220,12 @@ def verify_release_assets(output_dir: Path, version: str) -> None:
         preboot_helper = archive.extractfile(
             "gravity-installer/preboot_chflags_helper.py"
         ).read().decode()
-        if "def validate_target(path):" not in preboot_helper or 'stores != ["disk0s3"]' not in preboot_helper:
+        if (
+            "def validate_target(path):" not in preboot_helper
+            or "def apfs_containers():" not in preboot_helper
+            or "protected_stores" not in preboot_helper
+            or 'ParentWholeDisk") != "disk0"' not in preboot_helper
+        ):
             raise ValueError("privileged Preboot chflags helper is incomplete")
 
         checksum_file = archive.extractfile("SHA256SUMS").read().decode()

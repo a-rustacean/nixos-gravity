@@ -122,7 +122,9 @@ class MakeReleaseKitTest(unittest.TestCase):
                 preboot_helper = archive.extractfile(
                     "gravity-installer/preboot_chflags_helper.py"
                 ).read().decode()
-                self.assertIn('stores != ["disk0s3"]', preboot_helper)
+                self.assertIn("def apfs_containers():", preboot_helper)
+                self.assertIn("protected_stores", preboot_helper)
+                self.assertIn('ParentWholeDisk") != "disk0"', preboot_helper)
                 self.assertEqual((output / "latest").read_text(), "test-1\n")
 
             # macOS tar consumes AppleDouble sidecars into resource forks instead of

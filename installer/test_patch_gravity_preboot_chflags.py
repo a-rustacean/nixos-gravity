@@ -28,39 +28,104 @@ PREBOOT_INFO = {
     "MountPoint": "/Volumes/Preboot",
     "VolumeName": "Preboot",
     "Content": preboot_chflags_helper.APFS_CONTENT,
-    "DeviceIdentifier": "disk2s3",
-    "APFSContainerReference": "disk2",
+    "DeviceIdentifier": "disk4s3",
+    "APFSContainerReference": "disk4",
 }
 SYSTEM_INFO = {
     "MountPoint": "/Volumes/NixOS Gravity",
     "VolumeName": "NixOS Gravity",
-    "APFSContainerReference": "disk2",
+    "APFSContainerReference": "disk4",
     "APFSVolumeGroupID": GROUP_UUID,
 }
-CONTAINER_INFO = {
-    "ContainerReference": "disk2",
-    "PhysicalStores": [{"DeviceIdentifier": "disk0s3"}],
+TARGET_CONTAINER = {
+    "ContainerReference": "disk4",
+    "PhysicalStores": [{"DeviceIdentifier": "disk0s5"}],
     "Volumes": [
         {
-            "DeviceIdentifier": "disk2s1",
+            "DeviceIdentifier": "disk4s1",
             "APFSVolumeUUID": GROUP_UUID,
             "Name": "NixOS Gravity - Data",
             "Roles": ["Data"],
         },
         {
-            "DeviceIdentifier": "disk2s2",
+            "DeviceIdentifier": "disk4s2",
             "APFSVolumeUUID": "4C31B9CD-F104-4962-A5B6-8B2A618C354D",
             "Name": "NixOS Gravity",
             "Roles": ["System"],
         },
         {
-            "DeviceIdentifier": "disk2s3",
+            "DeviceIdentifier": "disk4s3",
             "APFSVolumeUUID": "9B27B1D1-293B-42B6-98C9-20E2506340C1",
             "Name": "Preboot",
             "Roles": ["Preboot"],
         },
+        {
+            "DeviceIdentifier": "disk4s4",
+            "APFSVolumeUUID": "3E7E643C-66C8-4471-BF49-7F28651051C3",
+            "Name": "Recovery",
+            "Roles": ["Recovery"],
+        },
     ],
 }
+MACOS_CONTAINER = {
+    "ContainerReference": "disk3",
+    "PhysicalStores": [{"DeviceIdentifier": "disk0s2"}],
+    "Volumes": [
+        {"DeviceIdentifier": "disk3s1", "Name": "Macintosh HD - Data", "Roles": ["Data"]},
+        {"DeviceIdentifier": "disk3s5", "Name": "Macintosh HD", "Roles": ["System"]},
+        {"DeviceIdentifier": "disk3s2", "Name": "Preboot", "Roles": ["Preboot"]},
+        {"DeviceIdentifier": "disk3s3", "Name": "Recovery", "Roles": ["Recovery"]},
+    ],
+}
+APPLE_RECOVERY_CONTAINER = {
+    "ContainerReference": "disk2",
+    "PhysicalStores": [{"DeviceIdentifier": "disk0s3"}],
+    "Volumes": [
+        {"DeviceIdentifier": "disk2s1", "Name": "Recovery", "Roles": ["Recovery"]},
+        {"DeviceIdentifier": "disk2s2", "Name": "Update", "Roles": ["Update"]},
+    ],
+}
+ISC_CONTAINER = {
+    "ContainerReference": "disk1",
+    "PhysicalStores": [{"DeviceIdentifier": "disk0s1"}],
+    "Volumes": [
+        {"DeviceIdentifier": "disk1s1", "Name": "iSCPreboot", "Roles": ["iSCPreboot"]}
+    ],
+}
+APFS_CONTAINERS = [
+    TARGET_CONTAINER,
+    MACOS_CONTAINER,
+    APPLE_RECOVERY_CONTAINER,
+    ISC_CONTAINER,
+]
+BOOT_INFO = {
+    "MountPoint": "/",
+    "Content": preboot_chflags_helper.APFS_CONTENT,
+    "APFSContainerReference": "disk3",
+    "APFSPhysicalStores": [{"APFSPhysicalStore": "disk0s2"}],
+}
+DISK0_INFO = {
+    "DeviceIdentifier": "disk0",
+    "WholeDisk": True,
+    "Internal": True,
+}
+TARGET_STORE_INFO = {
+    "DeviceIdentifier": "disk0s5",
+    "ParentWholeDisk": "disk0",
+    "PartitionMapPartition": True,
+    "Content": "Apple_APFS",
+    "APFSContainerReference": "disk4",
+}
+
+
+def valid_disk_info(path):
+    return {
+        "/Volumes/Preboot": PREBOOT_INFO,
+        "/Volumes/NixOS Gravity": SYSTEM_INFO,
+        "/": BOOT_INFO,
+        "disk0": DISK0_INFO,
+        "disk0s5": TARGET_STORE_INFO,
+    }[path]
 
 
 class GravityPrebootChflagsPatchTest(unittest.TestCase):
@@ -90,19 +155,13 @@ class GravityPrebootChflagsPatchTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "refusing to overwrite"):
                 patch_runtime(runtime)
 
-    def test_preboot_helper_accepts_only_nixos_group_on_disk0s3(self):
-        def info(path):
-            return {
-                "/Volumes/Preboot": PREBOOT_INFO,
-                "/Volumes/NixOS Gravity": SYSTEM_INFO,
-            }[path]
-
+    def test_preboot_helper_accepts_dedicated_stub_between_macos_and_recovery(self):
         with (
-            mock.patch.object(preboot_chflags_helper, "disk_info", side_effect=info),
+            mock.patch.object(preboot_chflags_helper, "disk_info", side_effect=valid_disk_info),
             mock.patch.object(
                 preboot_chflags_helper,
-                "apfs_container_info",
-                return_value=CONTAINER_INFO,
+                "apfs_containers",
+                return_value=APFS_CONTAINERS,
             ),
             mock.patch.object(preboot_chflags_helper.os.path, "realpath", side_effect=lambda p: p),
             mock.patch.object(preboot_chflags_helper.os.path, "isfile", return_value=True),
@@ -110,7 +169,8 @@ class GravityPrebootChflagsPatchTest(unittest.TestCase):
         ):
             target = preboot_chflags_helper.validate_target(TARGET)
         self.assertEqual(target["group_uuid"], GROUP_UUID)
-        self.assertEqual(target["physical_store"], "disk0s3")
+        self.assertEqual(target["physical_store"], "disk0s5")
+        self.assertEqual(target["booted_container"], "disk3")
 
     def test_preboot_helper_rejects_wrong_paths_containers_or_groups(self):
         bad_paths = (
@@ -127,18 +187,26 @@ class GravityPrebootChflagsPatchTest(unittest.TestCase):
             {"MountPoint": "/Volumes/Other"},
             {"VolumeName": "Recovery"},
             {"Content": "Apple_HFS"},
-            {"APFSContainerReference": "disk4"},
+            {"APFSContainerReference": "disk3"},
         ):
+            changed_preboot = {**PREBOOT_INFO, **changes}
             with (
                 self.subTest(changes=changes),
                 mock.patch.object(
                     preboot_chflags_helper, "disk_info",
-                    side_effect=lambda path: {**PREBOOT_INFO, **changes}
-                    if path == "/Volumes/Preboot" else SYSTEM_INFO,
+                    side_effect=lambda path: {
+                        **{
+                            "/Volumes/NixOS Gravity": SYSTEM_INFO,
+                            "/": BOOT_INFO,
+                            "disk0": DISK0_INFO,
+                            "disk0s5": TARGET_STORE_INFO,
+                        },
+                        "/Volumes/Preboot": changed_preboot,
+                    }[path],
                 ),
                 mock.patch.object(
-                    preboot_chflags_helper, "apfs_container_info",
-                    return_value=CONTAINER_INFO,
+                    preboot_chflags_helper, "apfs_containers",
+                    return_value=APFS_CONTAINERS,
                 ),
                 mock.patch.object(preboot_chflags_helper.os.path, "realpath", side_effect=lambda p: p),
                 mock.patch.object(preboot_chflags_helper.os.path, "isfile", return_value=True),
@@ -147,28 +215,76 @@ class GravityPrebootChflagsPatchTest(unittest.TestCase):
             ):
                 preboot_chflags_helper.validate_target(TARGET)
 
-    def test_preboot_helper_rejects_other_physical_stores(self):
-        other_store = {
-            **CONTAINER_INFO,
-            "PhysicalStores": [{"DeviceIdentifier": "disk0s2"}],
-        }
-        with (
-            mock.patch.object(
-                preboot_chflags_helper,
-                "disk_info",
-                side_effect=lambda path: PREBOOT_INFO if path == "/Volumes/Preboot" else SYSTEM_INFO,
-            ),
-            mock.patch.object(
-                preboot_chflags_helper,
-                "apfs_container_info",
-                return_value=other_store,
-            ),
-            mock.patch.object(preboot_chflags_helper.os.path, "realpath", side_effect=lambda p: p),
-            mock.patch.object(preboot_chflags_helper.os.path, "isfile", return_value=True),
-            mock.patch.object(preboot_chflags_helper.os.path, "islink", return_value=False),
-            self.assertRaisesRegex(ValueError, "disk0s3"),
+    def test_preboot_helper_rejects_macos_recovery_and_isc_stores(self):
+        for protected_store in ("disk0s1", "disk0s2", "disk0s3"):
+            target_container = {
+                **TARGET_CONTAINER,
+                "PhysicalStores": [{"DeviceIdentifier": protected_store}],
+            }
+            containers = [target_container, *APFS_CONTAINERS[1:]]
+            with (
+                self.subTest(protected_store=protected_store),
+                mock.patch.object(
+                    preboot_chflags_helper, "disk_info", side_effect=valid_disk_info
+                ),
+                mock.patch.object(
+                    preboot_chflags_helper, "apfs_containers", return_value=containers
+                ),
+                mock.patch.object(preboot_chflags_helper.os.path, "realpath", side_effect=lambda p: p),
+                mock.patch.object(preboot_chflags_helper.os.path, "isfile", return_value=True),
+                mock.patch.object(preboot_chflags_helper.os.path, "islink", return_value=False),
+                self.assertRaisesRegex(ValueError, "overlaps another APFS container"),
+            ):
+                preboot_chflags_helper.validate_target(TARGET)
+
+    def test_preboot_helper_rejects_non_disk0_or_non_apfs_partitions(self):
+        invalid_stores = (
+            [{"DeviceIdentifier": "disk1s5"}],
+            [{"DeviceIdentifier": "disk0"}],
+            [{"DeviceIdentifier": "disk0s5"}, {"DeviceIdentifier": "disk0s6"}],
+        )
+        for stores in invalid_stores:
+            container = {**TARGET_CONTAINER, "PhysicalStores": stores}
+            with (
+                self.subTest(stores=stores),
+                mock.patch.object(preboot_chflags_helper, "disk_info", side_effect=valid_disk_info),
+                mock.patch.object(
+                    preboot_chflags_helper,
+                    "apfs_containers",
+                    return_value=[container, *APFS_CONTAINERS[1:]],
+                ),
+                mock.patch.object(preboot_chflags_helper.os.path, "realpath", side_effect=lambda p: p),
+                mock.patch.object(preboot_chflags_helper.os.path, "isfile", return_value=True),
+                mock.patch.object(preboot_chflags_helper.os.path, "islink", return_value=False),
+                self.assertRaises(ValueError),
+            ):
+                preboot_chflags_helper.validate_target(TARGET)
+
+        for changes in (
+            {"ParentWholeDisk": "disk1"},
+            {"PartitionMapPartition": False},
+            {"Content": "Apple_APFS_Recovery"},
+            {"APFSContainerReference": "disk3"},
         ):
-            preboot_chflags_helper.validate_target(TARGET)
+            with (
+                self.subTest(store_changes=changes),
+                mock.patch.object(
+                    preboot_chflags_helper,
+                    "disk_info",
+                    side_effect=lambda path: {
+                        **valid_disk_info(path),
+                        **(changes if path == "disk0s5" else {}),
+                    },
+                ),
+                mock.patch.object(
+                    preboot_chflags_helper, "apfs_containers", return_value=APFS_CONTAINERS
+                ),
+                mock.patch.object(preboot_chflags_helper.os.path, "realpath", side_effect=lambda p: p),
+                mock.patch.object(preboot_chflags_helper.os.path, "isfile", return_value=True),
+                mock.patch.object(preboot_chflags_helper.os.path, "islink", return_value=False),
+                self.assertRaisesRegex(ValueError, "own APFS partition"),
+            ):
+                preboot_chflags_helper.validate_target(TARGET)
 
     def test_preboot_helper_changes_only_schg_and_noschg(self):
         with mock.patch.object(preboot_chflags_helper.subprocess, "run") as run:
