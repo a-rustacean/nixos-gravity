@@ -3,6 +3,7 @@
 
 import argparse
 import ctypes
+import json
 import os
 import plistlib
 import re
@@ -12,6 +13,22 @@ import sys
 
 APFSIOC_VOL_BOOTABLE = 0xC0044A57
 APFS_CONTENT = "41504653-0000-11AA-AA11-00306543ECAC"
+
+
+def validate_model():
+    model = subprocess.check_output(
+        ["/usr/sbin/sysctl", "-n", "hw.model"], text=True
+    ).strip()
+    with open(os.path.join(os.path.dirname(__file__), "installer_data.json")) as stream:
+        data = json.load(stream)
+    supported = {
+        product_type
+        for entry in data.get("os_list", [])
+        for product_type in entry.get("models", [])
+    }
+    if not supported or model not in supported:
+        raise ValueError(f"model {model!r} is not supported by this Gravity installer kit")
+    return model
 
 
 def disk_info(target):
@@ -72,11 +89,11 @@ def main(argv=None):
         parser.error("this helper only runs on macOS")
     if os.geteuid() != 0:
         parser.error("this helper must be invoked through sudo")
-    model = subprocess.check_output(
-        ["/usr/sbin/sysctl", "-n", "hw.model"], text=True
-    ).strip()
-    if model != "Mac16,10":
-        parser.error("this helper is restricted to Mac16,10")
+
+    try:
+        validate_model()
+    except (OSError, ValueError) as error:
+        parser.error(str(error))
 
     info = validate_target(args.mount_path)
     set_volbootable(args.mount_path, args.value)

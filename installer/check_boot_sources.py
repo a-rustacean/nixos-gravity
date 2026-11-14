@@ -5,6 +5,8 @@ import json
 import re
 from pathlib import Path
 
+import devices
+
 
 root = Path(__file__).resolve().parent.parent
 sources = json.loads((root / "installer/boot-sources.json").read_text())
@@ -25,5 +27,6 @@ assert runtime["repository"] == sources["gravity_installer"]["repository"]
 assert runtime["revision"] == sources["gravity_installer"]["revision"]
 assert runtime["url"].startswith("https://"), "Gravity installer runtime must use HTTPS"
 assert re.fullmatch(r"[0-9a-f]{64}", runtime["sha256"]), "runtime must have a SHA-256 pin"
+assert devices.supported_lines(), "device manifest must list at least one model"
 
-print("Gravity installer runtime, m1n1, Linux DTB, and U-Boot sources are pinned consistently")
+print("Gravity installer runtime, m1n1, Linux DTB, U-Boot, and device manifest are pinned consistently")

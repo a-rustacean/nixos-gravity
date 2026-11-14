@@ -2,6 +2,7 @@
 """Set one NixOS Preboot admin plist's system-immutable flag as root."""
 
 import argparse
+import json
 import os
 import plistlib
 import re
@@ -25,6 +26,22 @@ def disk_info(target):
         ["/usr/sbin/diskutil", "info", "-plist", target]
     )
     return plistlib.loads(raw)
+
+
+def validate_model():
+    model = subprocess.check_output(
+        ["/usr/sbin/sysctl", "-n", "hw.model"], text=True
+    ).strip()
+    with open(os.path.join(os.path.dirname(__file__), "installer_data.json")) as stream:
+        data = json.load(stream)
+    supported = {
+        product_type
+        for entry in data.get("os_list", [])
+        for product_type in entry.get("models", [])
+    }
+    if not supported or model not in supported:
+        raise ValueError(f"model {model!r} is not supported by this Gravity installer kit")
+    return model
 
 
 def apfs_containers():
@@ -174,11 +191,11 @@ def main(argv=None):
         parser.error("this helper only runs on macOS")
     if os.geteuid() != 0:
         parser.error("this helper must be invoked through sudo")
-    model = subprocess.check_output(
-        ["/usr/sbin/sysctl", "-n", "hw.model"], text=True
-    ).strip()
-    if model != "Mac16,10":
-        parser.error("this helper is restricted to Mac16,10")
+
+    try:
+        validate_model()
+    except (OSError, ValueError) as error:
+        parser.error(str(error))
 
     target = validate_target(args.path)
     set_flags(args.path, args.flag)

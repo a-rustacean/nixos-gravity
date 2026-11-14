@@ -9,6 +9,7 @@ import tempfile
 import zipfile
 
 from assemble_esp import assemble
+import devices
 
 
 HERE = Path(__file__).resolve().parent
@@ -31,7 +32,12 @@ def make_package(nixos_esp: Path, gravity_stage2_zip: Path, root_image: Path, ou
         raise ValueError("root image must be non-empty and a multiple of 4 KiB")
 
     installer_data = json.loads(INSTALLER_DATA.read_text())
-    partitions = installer_data["os_list"][0]["partitions"]
+    entry = installer_data["os_list"][0]
+    kit_id = entry["kit"]
+    expected_package = devices.package_name(kit_id)
+    if output.name != expected_package:
+        raise ValueError(f"installer package must be named {expected_package}")
+    partitions = entry["partitions"]
     efi = next((part for part in partitions if part.get("source") == "esp"), None)
     root = next((part for part in partitions if part.get("image") == "root.img"), None)
     if efi is None or root is None:

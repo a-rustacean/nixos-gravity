@@ -1,11 +1,15 @@
 {
   "os_list": [
     {
-      "name": "NixOS Gravity — M4 Mac mini (experimental)",
+      "name": "NixOS Gravity — Mac mini (M4, experimental)",
       "default_os_name": "NixOS Gravity",
+      "kit": "mac-mini-m4",
+      "models": [
+        "Mac16,10"
+      ],
       "boot_object": "m1n1.bin",
       "next_object": "m1n1/boot.bin",
-      "package": "nixos-gravity-j773g.zip",
+      "package": "nixos-gravity-mac-mini-m4.zip",
       "supported_fw": [
         "26.6.2"
       ],

@@ -60,7 +60,7 @@ class MakeReleaseKitTest(unittest.TestCase):
         return archive_path
 
     def make_package(self, root: Path) -> Path:
-        package_path = root / "nixos-gravity-j773g.zip"
+        package_path = root / "nixos-gravity-mac-mini-m4.zip"
         with zipfile.ZipFile(package_path, "w", compression=zipfile.ZIP_STORED) as package:
             for name in make_release_kit.REQUIRED_PACKAGE_MEMBERS:
                 package.writestr(name, b"R" * 4096 if name == "root.img" else b"fixture")
@@ -79,9 +79,11 @@ class MakeReleaseKitTest(unittest.TestCase):
             output = root / "assets"
 
             with self.with_runtime_pins(runtime_archive):
-                make_release_kit.make_release_kit(runtime_archive, package, "test-1", output)
+                make_release_kit.make_release_kit(
+                    runtime_archive, package, "mac-mini-m4", "test-1", output
+                )
 
-            kit_archive = output / "installer-test-1.tar.gz"
+            kit_archive = output / "installer-test-1-mac-mini-m4.tar.gz"
             with tarfile.open(kit_archive, "r:gz") as archive:
                 manifest = archive.extractfile("SHA256SUMS").read().decode()
                 checksums = {
@@ -107,6 +109,15 @@ class MakeReleaseKitTest(unittest.TestCase):
                     "gravity-installer/Frameworks/Python.framework/Versions/3.13/bin/python3.13",
                     checksums,
                 )
+                self.assertEqual(
+                    archive.extractfile("SUPPORTED-MODELS").read().decode(),
+                    "Mac16,10\n",
+                )
+                installer_data = json.load(
+                    archive.extractfile("gravity-installer/installer_data.json")
+                )
+                self.assertEqual(installer_data["os_list"][0]["kit"], "mac-mini-m4")
+                self.assertEqual(installer_data["os_list"][0]["models"], ["Mac16,10"])
                 runtime_source = archive.extractfile("gravity-installer/urlcache.py").read().decode()
                 self.assertIn("_request_path(self.url)", runtime_source)
                 util_source = archive.extractfile("gravity-installer/util.py").read().decode()
@@ -138,8 +149,9 @@ class MakeReleaseKitTest(unittest.TestCase):
                     expected, _, name = line.partition("  ")
                     self.assertEqual(digest(Path(extracted) / name), expected, name)
 
-            self.assertTrue((output / "installer-test-1.tar.gz.sha256").is_file())
-            self.assertTrue((output / "nixos-gravity-j773g.zip.sha256").is_file())
+            self.assertTrue((output / "installer-test-1-mac-mini-m4.tar.gz.sha256").is_file())
+            self.assertTrue((output / "nixos-gravity-mac-mini-m4.zip.sha256").is_file())
+            self.assertEqual((output / "supported-models.txt").read_text(), "Mac16,10 mac-mini-m4\n")
 
     def test_existing_asset_is_not_overwritten_or_partially_written(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -153,7 +165,9 @@ class MakeReleaseKitTest(unittest.TestCase):
 
             with self.with_runtime_pins(runtime_archive):
                 with self.assertRaisesRegex(FileExistsError, "refusing to overwrite"):
-                    make_release_kit.make_release_kit(runtime_archive, package, "test-1", output)
+                    make_release_kit.make_release_kit(
+                        runtime_archive, package, "mac-mini-m4", "test-1", output
+                    )
 
             self.assertEqual(latest.read_text(), "previous\n")
             self.assertEqual(sorted(path.name for path in output.iterdir()), ["latest"])

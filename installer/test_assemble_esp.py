@@ -24,7 +24,9 @@ class AssembleEspTest(unittest.TestCase):
             stage2 = root / "stage2.zip"
             with zipfile.ZipFile(stage2, "w") as archive:
                 archive.writestr(STAGE2_MEMBER, b"gravity-boot-bin")
-                archive.writestr("esp/licenses/gravity-artwork/LICENSE", b"Gravity artwork license")
+                archive.writestr(
+                    "esp/licenses/gravity-bootloader/LICENSE.GPL2", b"Gravity bootloader license"
+                )
 
             output = root / "merged-esp"
             assemble(esp, stage2, output)
@@ -33,8 +35,8 @@ class AssembleEspTest(unittest.TestCase):
                 self.assertEqual((output / relative).read_bytes(), relative.encode())
             self.assertEqual((output / "m1n1/boot.bin").read_bytes(), b"gravity-boot-bin")
             self.assertEqual(
-                (output / "licenses/gravity-artwork/LICENSE").read_bytes(),
-                b"Gravity artwork license",
+                (output / "licenses/gravity-bootloader/LICENSE.GPL2").read_bytes(),
+                b"Gravity bootloader license",
             )
 
     def test_rejects_unsafe_archive_paths(self):
@@ -111,14 +113,16 @@ class AssembleEspTest(unittest.TestCase):
             stage2 = root / "stage2.zip"
             with zipfile.ZipFile(stage2, "w") as archive:
                 archive.writestr(STAGE2_MEMBER, b"gravity-boot-bin")
-                archive.writestr("esp/licenses/gravity-artwork/LICENSE", b"Gravity artwork license")
+                archive.writestr(
+                    "esp/licenses/gravity-bootloader/LICENSE.GPL2", b"Gravity bootloader license"
+                )
 
             root_image = root / "root.img"
             root_image.write_bytes(b"N" * 4096)
             # Nix store files can have epoch timestamps, before ZIP's 1980 minimum.
             os.utime(esp / "EFI/BOOT/BOOTAA64.EFI", (0, 0))
             os.utime(root_image, (0, 0))
-            output = root / "nixos-gravity-j773g.zip"
+            output = root / "nixos-gravity-mac-mini-m4.zip"
             make_package(esp, stage2, root_image, output)
 
             with zipfile.ZipFile(output) as archive:
@@ -134,7 +138,9 @@ class AssembleEspTest(unittest.TestCase):
                 self.assertEqual(archive.read("root.img"), b"N" * 4096)
                 self.assertEqual(archive.read("esp/m1n1/boot.bin"), b"gravity-boot-bin")
                 self.assertIn("esp/EFI/Linux/nixos-gravity.efi", archive.namelist())
-                self.assertIn("esp/licenses/gravity-artwork/LICENSE", archive.namelist())
+                self.assertIn(
+                    "esp/licenses/gravity-bootloader/LICENSE.GPL2", archive.namelist()
+                )
                 self.assertIn("BOOT-SOURCES.json", archive.namelist())
 
     def test_rejects_unaligned_root_image(self):
@@ -159,7 +165,7 @@ class AssembleEspTest(unittest.TestCase):
                 archive.writestr(STAGE2_MEMBER, b"gravity-boot-bin")
             image = root / "root.img"
             image.write_bytes(b"R" * 4096)
-            output = root / "existing.zip"
+            output = root / "nixos-gravity-mac-mini-m4.zip"
             output.write_bytes(b"keep this file")
 
             with self.assertRaises(FileExistsError):

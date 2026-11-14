@@ -1,0 +1,18 @@
+{
+  "family": "Mac mini (M4)",
+  "kits": [
+    {
+      "id": "mac-mini-m4",
+      "name": "Mac mini (M4)",
+      "models": [
+        {
+          "product_type": "Mac16,10",
+          "marketing_name": "Mac mini (2024)",
+          "board": "J773g",
+          "soc": "T8132",
+          "dtb": "t8132-j773g"
+        }
+      ]
+    }
+  ]
+}

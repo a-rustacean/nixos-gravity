@@ -5,7 +5,7 @@
   },
   "gravity_bootloader": {
     "repository": "GravityLinux/bootloader",
-    "revision": "950e6b7f268e71cf77889f27a760782bf898b651"
+    "revision": "f5f5d4520587b6b8e2d8eb4d866baae129f47765"
   },
   "gravity_linux": {
     "repository": "GravityLinux/linux",

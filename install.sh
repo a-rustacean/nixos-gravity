@@ -1,5 +1,5 @@
 #!/bin/sh
-# NixOS on the base M4 Mac mini: release bootstrap.
+# NixOS on Mac mini (M4): release bootstrap.
 # This script is intended to be served at the project's stable install URL.
 set -eu
 PATH=/usr/bin:/bin:/usr/sbin:/sbin
@@ -16,7 +16,7 @@ fail() {
 
 usage() {
     cat <<'EOF'
-NixOS Gravity installer for the base M4 Mac mini (Mac16,10 / J773g).
+NixOS Gravity installer for supported Mac mini (M4) models.
 
 Usage:
   curl -fsSL https://raw.githubusercontent.com/a-rustacean/nixos-gravity/main/install.sh | sh
@@ -26,7 +26,7 @@ The installer must be run from macOS as a regular user. The installation kit
 will ask for administrator authorization only when needed.
 
 Options:
-  --preflight  Check this Mac without downloading or changing anything
+  --preflight  Check this Mac and the published model list without changing anything
   --help       Show this message
 EOF
 }
@@ -36,8 +36,12 @@ check_host() {
     [ "$(uname -m)" = arm64 ] || fail 'only Apple Silicon is supported.'
     [ -d /System ] || fail 'macOS system volume was not found.'
 
-    model=$(/usr/sbin/sysctl -n hw.model 2>/dev/null || true)
-    [ "$model" = Mac16,10 ] || fail "unsupported model '$model'; only Mac16,10 (base M4 Mac mini / J773g) is supported."
+    MODEL=$(/usr/sbin/sysctl -n hw.model 2>/dev/null || true)
+    [ -n "$MODEL" ] || fail 'could not determine this Mac model.'
+    MACHINE_NAME=$(/usr/sbin/system_profiler -json SPHardwareDataType 2>/dev/null |
+        /usr/bin/plutil -extract SPHardwareDataType.0.machine_name raw -o - - 2>/dev/null || true)
+    [ "$MACHINE_NAME" = 'Mac mini' ] ||
+        fail "unsupported Mac family '${MACHINE_NAME:-unknown}'; this installer supports Mac mini (M4) models only."
 
     [ "$(/usr/bin/id -u)" -ne 0 ] || fail 'run as your normal macOS user, without sudo.'
 
@@ -61,12 +65,14 @@ check_host() {
 
     /usr/bin/curl --version >/dev/null 2>&1 || fail 'curl is unavailable.'
     /usr/bin/shasum -a 256 /dev/null >/dev/null 2>&1 || fail 'shasum is unavailable.'
+}
 
+print_host() {
     printf '%s\n' 'Preflight passed:'
-    printf '  Model:      %s (base M4 Mac mini / J773g)\n' "$model"
-    printf '  macOS:      %s\n' "$version"
+    printf '  Model:      %s (%s)\n' "$MODEL" "$MACHINE_NAME"
+    printf '  macOS:      %s\n' "$(/usr/bin/sw_vers -productVersion)"
     printf '  Processor:  %s\n' "$(uname -m)"
-    printf '%s\n' '  Disk state: unchanged by preflight'
+    printf '  Disk state: unchanged by preflight\n'
 }
 
 case "${1:-}" in
@@ -76,9 +82,9 @@ case "${1:-}" in
         ;;
     --preflight)
         [ "$#" -eq 1 ] || fail '--preflight does not accept additional arguments.'
-        check_host
-        exit 0
+        preflight=1
         ;;
+    *) preflight=0 ;;
 esac
 
 check_host
@@ -88,16 +94,37 @@ case "$INSTALLER_BASE" in
     *) fail 'installer base URL must use HTTPS.' ;;
 esac
 
-printf '\n%s\n' 'Preparing the NixOS Gravity installer kit...'
 version=$(/usr/bin/curl --fail --silent --show-error --location --retry 3 "$INSTALLER_BASE/latest") ||
     fail "could not read the release version from $INSTALLER_BASE/latest."
 case "$version" in
     '' | *[!A-Za-z0-9._+-]*) fail 'release version contains invalid characters.' ;;
 esac
 
-archive="installer-$version.tar.gz"
 work=$(/usr/bin/mktemp -d /private/tmp/nixos-gravity-install.XXXXXXXX) || fail 'could not create a temporary directory.'
 trap 'rm -rf "$work"' 0
+
+models_file="$work/supported-models.txt"
+/usr/bin/curl --fail --silent --show-error --location --retry 3 \
+    -o "$models_file" "$INSTALLER_BASE/supported-models.txt" ||
+    fail 'could not download the supported-model list.'
+[ -s "$models_file" ] || fail 'the release supported-model list is empty.'
+
+kit_id=$(awk -v model="$MODEL" '$1 == model { print $2; exit }' "$models_file")
+if [ -z "$kit_id" ]; then
+    supported=$(awk '{ print $1 }' "$models_file" | tr '\n' ' ')
+    fail "this release does not support $MODEL. Supported models: $supported"
+fi
+case "$kit_id" in
+    '' | *[!a-z0-9-]*) fail 'release model list contains an invalid kit name.' ;;
+esac
+
+if [ "$preflight" -eq 1 ]; then
+    print_host
+    printf '  Release:    %s (%s)\n' "$version" "$kit_id"
+    exit 0
+fi
+
+archive="installer-$version-$kit_id.tar.gz"
 
 if ! /usr/bin/curl --fail --silent --show-error --location --retry 3 \
     -o "$work/$archive" "$INSTALLER_BASE/$archive"; then
@@ -126,6 +153,9 @@ fi
 /usr/bin/tar -xzf "$work/$archive" -C "$work"
 [ -f "$work/Install.command" ] || fail 'release kit does not contain Install.command.'
 [ -f "$work/SHA256SUMS" ] || fail 'release kit does not contain SHA256SUMS.'
+[ -f "$work/SUPPORTED-MODELS" ] || fail 'release kit does not contain a model list.'
+grep -Fx "$MODEL" "$work/SUPPORTED-MODELS" >/dev/null ||
+    fail "the downloaded kit does not support $MODEL."
 (cd "$work" && /usr/bin/shasum -a 256 -c SHA256SUMS) || fail 'release kit file verification failed.'
 
 printf '\n%s\n' 'Starting the verified installer kit.'

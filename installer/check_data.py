@@ -4,15 +4,20 @@
 import json
 from pathlib import Path
 
+import devices
+
 
 root = Path(__file__).resolve().parent.parent
 data = json.loads((Path(__file__).with_name("installer_data.json")).read_text())
 assert len(data["os_list"]) == 1, "expected exactly one installable OS"
 os_entry = data["os_list"][0]
+kit_id = os_entry["kit"]
+kit = devices.kit(kit_id)
 assert os_entry["default_os_name"] == "NixOS Gravity"
+assert os_entry["models"] == [model["product_type"] for model in kit["models"]]
+assert os_entry["package"] == devices.package_name(kit_id)
 assert os_entry["boot_object"] == "m1n1.bin"
 assert os_entry["next_object"] == "m1n1/boot.bin"
-assert os_entry["package"] == "nixos-gravity-j773g.zip"
 assert os_entry["supported_fw"], "must pin the tested Gravity firmware version"
 
 partitions = os_entry["partitions"]
@@ -31,4 +36,4 @@ assert int(root_partition["size"].removesuffix("B")) == 32 * 1024**3
 configuration = (root / "configuration.nix").read_text()
 assert 'device = "/dev/disk/by-uuid/7a773000-0000-4000-8000-000000000001";' in configuration
 assert 'device = "/dev/disk/by-partlabel/EFI - NixOS Gravity";' in configuration
-print("Gravity installer metadata matches the J773g root and ESP layout")
+print(f"Gravity installer metadata matches the {kit['name']} root and ESP layout")

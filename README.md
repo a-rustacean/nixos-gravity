@@ -2,7 +2,7 @@
 
 [![Build](https://github.com/a-rustacean/nixos-gravity/actions/workflows/ci.yml/badge.svg)](https://github.com/a-rustacean/nixos-gravity/actions/workflows/ci.yml)
 
-An experimental NixOS port for the **base M4 Mac mini only** (Mac16,10 / J773g / T8132), reusing Gravity Linux's M4 boot and driver stack. It is not an Asahi Linux installation.
+An experimental NixOS port for Mac mini (M4) hardware supported by Gravity Linux, reusing Gravity's boot and driver stack. It is not an Asahi Linux installation. **Current Gravity support for the Mac mini covers only the base M4 (Mac16,10 / J773g / T8132); M4 Pro is not included unless Gravity adds support for it.**
 
 Source: <https://github.com/a-rustacean/nixos-gravity>
 
@@ -10,13 +10,13 @@ Read [`FEASIBILITY.md`](FEASIBILITY.md) before installing. It describes the prop
 
 ## Current implementation status
 
-The repository has a pinned Nix flake for a J773g NixOS system, a Gravity Linux 7.1.13 kernel package/config, an ext4 root-image derivation, and a NixOS UKI/ESP tree. CI has successfully built and checksum-verified a pinned Gravity m1n1/U-Boot stage-two artifact for J773g. A follow-on CI job is assembling those boot files with the NixOS ESP and root image in the ZIP layout expected by Gravity's installer. The firmware flow, adapted interactive installer kit, credentials setup, and target-hardware boot/recovery/rollback tests remain outstanding. It is **not a tested NixOS installation kit** yet.
+The repository has a pinned Nix flake for the currently Gravity-supported Mac mini board, a Gravity kernel package/config, an ext4 root-image derivation, and a NixOS UKI/ESP tree. The installer selects a kit from our explicit Gravity-backed model allowlist; unsupported Macs are rejected. CI must pass for each updated kit, then hardware boot, Apple Recovery, and rollback must be verified. It is **not a tested NixOS installation kit** yet.
 
-The bootstrap's preflight is safe to run, but a full installation is not ready. The bootstrap script is hosted in this GitHub repository, and the configured release base is GitHub Releases. A complete installer kit has not been published or verified yet. Do not run the install command until a tested kit and recovery guide are released.
+The bootstrap's preflight is read-only, but it requires the release model list; a full installation is not ready. The configured release base is GitHub Releases, and a complete installer kit has not been published or hardware-verified. Do not run the install command until a tested kit and recovery guide are released.
 
 The system and root-image derivations target `aarch64-linux`. The [GitHub Actions workflow](.github/workflows/ci.yml) is configured to evaluate and build the current flake outputs on an ARM64 Ubuntu runner. Building locally from macOS still requires an `aarch64-linux` builder.
 
-The intended user flow mirrors Gravity Linux: open Terminal in macOS on the target Mac, run the short command, review the installer plan, and explicitly confirm installation. The eventual kit must verify the exact model, preserve macOS/recovery, reuse the Gravity boot chain, verify downloaded artifacts against a trusted release signature, and provide a tested rollback path. The bootstrap refuses every model except `Mac16,10`.
+The intended user flow mirrors Gravity Linux: open Terminal in macOS on the target Mac, run the short command, review the installer plan, and explicitly confirm installation. The eventual kit must verify the exact model against the supported-model list, preserve macOS/recovery, reuse the Gravity boot chain, verify downloaded artifacts against a trusted release signature, and provide a tested rollback path. At present, the supported-model list contains only `Mac16,10`, matching Gravity's current Mac mini M4 support.
 
 ### Local preflight
 
@@ -34,4 +34,4 @@ Once this repository is publicly accessible and a reviewed installer kit is atta
 curl -fsSL https://raw.githubusercontent.com/a-rustacean/nixos-gravity/main/install.sh | sh
 ```
 
-The bootstrap expects release assets named `latest` (containing the kit version), `installer-<version>.tar.gz`, and `installer-<version>.tar.gz.sha256`. The endpoint will fail until those assets exist.
+The bootstrap expects release assets named `latest`, `supported-models.txt`, `installer-<version>-<kit>.tar.gz`, and that archive's `.sha256` checksum. The endpoint will fail until those assets exist.

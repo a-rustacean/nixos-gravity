@@ -34,6 +34,21 @@ VALID_INFO = {
 
 
 class GravityVolBootablePatchTest(unittest.TestCase):
+    def test_privileged_helper_model_allowlist_comes_from_installer_metadata(self):
+        with mock.patch.object(
+            fsctl_bootable_helper.subprocess,
+            "check_output",
+            return_value="Mac16,10\n",
+        ):
+            self.assertEqual(fsctl_bootable_helper.validate_model(), "Mac16,10")
+        with mock.patch.object(
+            fsctl_bootable_helper.subprocess,
+            "check_output",
+            return_value="Mac16,11\n",
+        ):
+            with self.assertRaisesRegex(ValueError, "not supported"):
+                fsctl_bootable_helper.validate_model()
+
     def test_patch_adds_narrow_elevated_fallback_and_is_idempotent(self):
         patched = patch_source(UTIL_FIXTURE)
         self.assertIn("errno.EPERM", patched)

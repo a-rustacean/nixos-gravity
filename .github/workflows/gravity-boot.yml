@@ -21,8 +21,11 @@ on:
       - installer/runtime-source.json
       - installer/make_release_kit.py
       - installer/test_make_release_kit.py
+      - installer/devices.json
+      - installer/devices.py
       - installer/installer_data.json
       - installer/check_data.py
+      - install.sh
       - flake.nix
       - flake.lock
       - configuration.nix
@@ -47,8 +50,11 @@ on:
       - installer/runtime-source.json
       - installer/make_release_kit.py
       - installer/test_make_release_kit.py
+      - installer/devices.json
+      - installer/devices.py
       - installer/installer_data.json
       - installer/check_data.py
+      - install.sh
       - flake.nix
       - flake.lock
       - configuration.nix
@@ -63,6 +69,9 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+env:
+  KIT_ID: mac-mini-m4
+
 jobs:
   build-stage-two:
     name: Build pinned Gravity m1n1 + U-Boot payload
@@ -70,7 +79,7 @@ jobs:
     timeout-minutes: 90
     env:
       GRAVITY_INSTALLER_REF: 6420623289fe7544cb8589b658355e57f0290fcc
-      GRAVITY_BOOTLOADER_REF: 950e6b7f268e71cf77889f27a760782bf898b651
+      GRAVITY_BOOTLOADER_REF: f5f5d4520587b6b8e2d8eb4d866baae129f47765
       GRAVITY_LINUX_REF: 4fc326f6c25ccceb7515e2635c22e01fde5d3bac
       GRAVITY_UBOOT_REF: a44f46af0aa17e48572e0d46c0d082886ee353c3
       RUSTUP_TOOLCHAIN: 1.93.1
@@ -139,7 +148,7 @@ jobs:
       - name: Upload stage-two build artifact (not a release)
         uses: actions/upload-artifact@v4
         with:
-          name: gravity-j773g-stage2
+          name: gravity-${{ env.KIT_ID }}-stage2
           path: out/
           if-no-files-found: error
           retention-days: 30
@@ -156,7 +165,7 @@ jobs:
       - name: Download verified Gravity stage-two artifact
         uses: actions/download-artifact@v4
         with:
-          name: gravity-j773g-stage2
+          name: gravity-${{ env.KIT_ID }}-stage2
           path: ${{ runner.temp }}/gravity-stage2
 
       - name: Install Nix
@@ -180,9 +189,9 @@ jobs:
         run: |
           python3 installer/make_installer_package.py \
             "$RUNNER_TEMP/nixos-esp" \
-            "$RUNNER_TEMP/gravity-stage2/gravity-j773g-stage2.zip" \
+            "$RUNNER_TEMP/gravity-stage2/gravity-${KIT_ID}-stage2.zip" \
             "$RUNNER_TEMP/root-image" \
-            "$RUNNER_TEMP/nixos-gravity-j773g.zip"
+            "$RUNNER_TEMP/nixos-gravity-${KIT_ID}.zip"
 
       - name: Assemble versioned installer assets (test artifact only)
         run: |
@@ -194,22 +203,23 @@ jobs:
           printf '%s  %s\n' "$runtime_sha" "$runtime_archive" | sha256sum --check --status
           python3 installer/make_release_kit.py \
             "$runtime_archive" \
-            "$RUNNER_TEMP/nixos-gravity-j773g.zip" \
+            "$RUNNER_TEMP/nixos-gravity-${KIT_ID}.zip" \
+            "$KIT_ID" \
             "ci-${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}" \
             "$RUNNER_TEMP/release-assets"
 
       - name: Upload assembled installer input (not a release)
         uses: actions/upload-artifact@v4
         with:
-          name: nixos-gravity-j773g-installer-input
-          path: ${{ runner.temp }}/nixos-gravity-j773g.zip
+          name: nixos-gravity-${{ env.KIT_ID }}-installer-input
+          path: ${{ runner.temp }}/nixos-gravity-${{ env.KIT_ID }}.zip
           if-no-files-found: error
           retention-days: 30
 
       - name: Upload versioned installer assets (not a release)
         uses: actions/upload-artifact@v4
         with:
-          name: nixos-gravity-j773g-test-kit
+          name: nixos-gravity-${{ env.KIT_ID }}-test-kit
           path: ${{ runner.temp }}/release-assets/
           if-no-files-found: error
           retention-days: 30
